@@ -1,5 +1,6 @@
 from esportswiki_editing import login
 
+
 async def login_if_possible(ctx, bot, wiki):
     gamepedia_keys = await bot.get_shared_api_tokens("gamepedia")
     if gamepedia_keys.get("account") is None:
