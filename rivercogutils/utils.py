@@ -1,4 +1,5 @@
-from esportswiki_editing import login
+from river_mwclient.esports_client import EsportsClient
+from river_mwclient.auth_credentials import AuthCredentials
 
 
 async def login_if_possible(ctx, bot, wiki):
@@ -8,4 +9,6 @@ async def login_if_possible(ctx, bot, wiki):
         return None
     username = "{}@{}".format(gamepedia_keys.get("account"), gamepedia_keys.get("bot"))
     password = gamepedia_keys.get("password")
-    return login('me', wiki, username=username, pwd=password)
+    credentials = AuthCredentials(username=username, password=password)
+    site = EsportsClient('lol', credentials=credentials)
+    return site
