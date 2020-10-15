@@ -10,5 +10,5 @@ async def login_if_possible(ctx, bot, wiki):
     username = "{}@{}".format(gamepedia_keys.get("account"), gamepedia_keys.get("bot"))
     password = gamepedia_keys.get("password")
     credentials = AuthCredentials(username=username, password=password)
-    site = EsportsClient('lol', credentials=credentials)
+    site = EsportsClient(wiki, credentials=credentials)
     return site
