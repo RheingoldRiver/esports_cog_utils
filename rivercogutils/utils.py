@@ -2,7 +2,7 @@ from river_mwclient.esports_client import EsportsClient
 from river_mwclient.auth_credentials import AuthCredentials
 
 
-async def login_if_possible(ctx, bot, wiki):
+async def login_if_possible(ctx, bot, wiki) -> EsportsClient:
     gamepedia_keys = await bot.get_shared_api_tokens("gamepedia")
     if gamepedia_keys.get("account") is None:
         await ctx.send("Sorry, you haven't set a Gamepedia bot account yet.")
