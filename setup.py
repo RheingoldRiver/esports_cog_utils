@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="rivercogutils",
-    version="0.0.3",
+    version="0.0.4",
     author="RheingoldRiver",
     author_email="river.esports@gmail.com",
     description="River's Red cog tools",
