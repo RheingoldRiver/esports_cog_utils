@@ -7,7 +7,7 @@ class BayesBadAPIKeyException(Exception):
     pass
 
 
-class BayesUnexpectedResponseError(KeyError):
+class BayesUnexpectedResponseException(KeyError):
     def __init__(self, service, response):
         super().__init__()
         self.service = service

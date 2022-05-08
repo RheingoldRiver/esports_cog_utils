@@ -4,7 +4,7 @@ from typing import Any, Dict, Iterable, List, Literal, Optional, TypedDict, Unio
 import backoff
 from aiohttp import ClientResponseError, ClientSession
 
-from errors import BadRequestException, BayesBadAPIKeyException, BayesUnexpectedResponseError
+from errors import BadRequestException, BayesBadAPIKeyException, BayesUnexpectedResponseException
 
 GameID = str
 AssetType = Literal['GAMH_DETAILS', 'GAMH_SUMMARY', 'ROFL_REPLAY']
@@ -32,6 +32,9 @@ class RateLimitException(Exception):
 
 
 class BayesAPIWrapper:
+    ENDPOINT = "https://emh-api.bayesesports.com/"
+    SPECIAL_TAGS = ['NULL', 'ALL']
+
     def __init__(self, username: str, password: str, *, session: ClientSession = None):
         self.username = username
         self.password = password
@@ -65,11 +68,10 @@ class BayesAPIWrapper:
         if ensure_keys is None:
             ensure_keys = []
 
-        endpoint = "https://emh-api.bayesesports.com/"
         if self.session is None:
             self.session = ClientSession()
         if method == "GET":
-            async with self.session.get(endpoint + service, headers=await self._get_headers(), params=data) as resp:
+            async with self.session.get(self.ENDPOINT + service, headers=await self._get_headers(), params=data) as resp:
                 if resp.status == 401 and allow_retry:
                     await self._ensure_login(force_relogin=True)
                     return await self._do_api_call(method, service, data, allow_retry=False, ensure_keys=ensure_keys)
@@ -78,13 +80,13 @@ class BayesAPIWrapper:
                 resp.raise_for_status()
                 data = await resp.json()
         elif method == "POST":
-            async with self.session.post(endpoint + service, json=data) as resp:
+            async with self.session.post(self.ENDPOINT + service, json=data) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
         else:
             raise ValueError("HTTP Method must be GET or POST.")
         if not all(key in data for key in ensure_keys):
-            raise BayesUnexpectedResponseError(service, data)
+            raise BayesUnexpectedResponseException(service, data)
         return data
 
     async def _get_headers(self) -> Dict[str, str]:
@@ -95,7 +97,7 @@ class BayesAPIWrapper:
     def _clean_game(self, game: Game) -> Game:
         """Add the NULL tag to a game with no tags."""
         if not all(key in game for key in Game.__annotations__):
-            raise BayesUnexpectedResponseError('game', game)
+            raise BayesUnexpectedResponseException('game', game)
 
         if not game['tags']:
             game['tags'].append('NULL')
@@ -103,7 +105,7 @@ class BayesAPIWrapper:
 
     async def get_tags(self) -> List[Tag]:
         """Return a list of tags that can be used to request games"""
-        return ['NULL', 'ALL'] + await self._do_api_call('GET', 'api/v1/tags')
+        return self.SPECIAL_TAGS + await self._do_api_call('GET', 'api/v1/tags')
 
     async def get_games(self, *, page: Optional[int] = None, page_size: Optional[int] = None,
                         from_timestamp: Optional[Union[datetime, str]] = None,
