@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="esports_cog_utils",
-    version="0.0.2",
+    version="0.1.0",
     author="RheingoldRiver",
     author_email="river.esports@gmail.com",
     description="River's Red cog tools",
@@ -14,6 +14,9 @@ setuptools.setup(
     url="https://github.com/RheingoldRiver/esports_cog_utils",
     packages=setuptools.find_packages(),
     python_requires='>=3.6',
-    # install_requires=['mwclient', 'mwparserfromhell'],
-    dependency_links=['mwrogue']
+    install_requires=[
+        "mwrogue",
+        "aiohttp",
+        "backoff",
+    ],
 )
