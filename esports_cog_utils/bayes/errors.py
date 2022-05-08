@@ -1,4 +1,4 @@
-class BadRequestException(Exception):
+class BayesBadRequestException(Exception):
     def __init__(self, reason):
         super().__init__(reason)
 
@@ -12,3 +12,7 @@ class BayesUnexpectedResponseException(KeyError):
         super().__init__()
         self.service = service
         self.response = response
+
+
+class BayesRateLimitException(Exception):
+    pass

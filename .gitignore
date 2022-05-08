@@ -2,4 +2,5 @@
 !*.py
 !.gitignore
 !/esports_cog_utils/
+!/esports_cog_utils/bayes
 !README.md
