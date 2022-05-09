@@ -4,9 +4,9 @@ from typing import Any, Dict, Iterable, List, Literal, Optional, Union
 import backoff
 from requests import HTTPError, Session
 
-from errors import BayesBadAPIKeyException, BayesBadRequestException, BayesRateLimitException, \
+from .errors import BayesBadAPIKeyException, BayesBadRequestException, BayesRateLimitException, \
     BayesUnexpectedResponseException
-from api_types import AssetType, Game, GetGamesResponse, INFINITY, RPGId, Service, Tag
+from .api_types import AssetType, Game, GetGamesResponse, INFINITY, RPGId, Service, Tag
 
 
 class BayesAPIWrapper:
