@@ -1,33 +1,30 @@
+import json
+import os
 from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, List, Literal, Optional, Union
 
 import backoff
+from aiofiles import open as aopen
 from aiohttp import ClientResponseError, ClientSession
 
 from .errors import BayesBadAPIKeyException, BayesBadRequestException, BayesRateLimitException, \
     BayesUnexpectedResponseException
-from .static_types import AssetType, Game, GetGamesResponse, INFINITY, RPGId, Service, Tag
+from .shared_types import AssetType, BaseBayesClient, Game, GetGamesResponse, INFINITY, RPGId, Service, Tag
 
 
-class AIOBayesClient:
-    ENDPOINT = "https://emh-api.bayesesports.com/"
-    SPECIAL_TAGS = ['NULL', 'ALL']
-
-    def __init__(self, username: str, password: str, *, session: ClientSession = None,
-                 access_token: Optional[str] = None, refresh_token: Optional[str] = None,
-                 expires: datetime = datetime.min):
-        self.username = username
-        self.password = password
-
-        self.session = session
-
-        self.access_token = access_token
-        self.refresh_token = refresh_token
-        self.expires = expires
+class AsyncBayesClient(BaseBayesClient):
+    async def _save_login(self):
+        os.makedirs(os.path.dirname(self.SAVE_FILE), exist_ok=True)
+        async with aopen(self.SAVE_FILE, 'w+') as f:
+            await f.write(json.dumps({
+                'accessToken': self.access_token,
+                'refreshToken': self.refresh_token,
+                'expiresIn': self.expires.timestamp()
+            }))
 
     async def _ensure_login(self, force_relogin: bool = False) -> None:
         """Ensure that the access_token is recent and valid"""
-        if force_relogin or self.access_token is None:
+        if force_relogin:
             try:
                 data = await self._do_api_call('POST', Service.LOGIN,
                                                {'username': self.username, 'password': self.password},
@@ -36,15 +33,32 @@ class AIOBayesClient:
                 if e.status == 500:
                     raise BayesBadAPIKeyException()
                 raise
-            self.access_token = data['accessToken']
-            self.refresh_token = data['refreshToken']
             self.expires = datetime.now() + timedelta(seconds=data['expiresIn'])
+        elif self.access_token is None:
+            try:
+                async with aopen(self.SAVE_FILE) as f:
+                    data = json.loads(await f.read())
+            except FileNotFoundError:
+                return await self._ensure_login(force_relogin=True)
+            self.expires = datetime.fromtimestamp(data['expiresIn'])
+            if self.expires <= datetime.now():
+                return await self._ensure_login(force_relogin=False)
         elif self.expires <= datetime.now():
-            data = await self._do_api_call('POST', Service.REFRESH,
-                                           {'refreshToken': self.refresh_token},
-                                           ensure_keys=['accessToken', 'expiresIn'])
-            self.access_token = data['accessToken']
-            self.expires = datetime.now() + timedelta(seconds=data['expiresIn'])
+            try:
+                data = await self._do_api_call('POST', Service.REFRESH,
+                                               {'refreshToken': self.refresh_token},
+                                               ensure_keys=['accessToken', 'refreshToken', 'expiresIn'])
+                self.expires = datetime.now() + timedelta(seconds=data['expiresIn'])
+            except ClientResponseError as cre:
+                if cre.status == 500:
+                    return await self._ensure_login(force_relogin=True)
+                raise
+        else:
+            return
+
+        self.access_token = data['accessToken']
+        self.refresh_token = data['refreshToken']
+        await self._save_login()
 
     @backoff.on_exception(backoff.expo, BayesRateLimitException, logger=None)
     async def _do_api_call(self, method: Literal['GET', 'POST'], service: str,
@@ -83,15 +97,6 @@ class AIOBayesClient:
         await self._ensure_login()
         return {'Authorization': f'Bearer {self.access_token}'}
 
-    def _clean_game(self, game: Game) -> Game:
-        """Add the NULL tag to a game with no tags."""
-        if not all(key in game for key in Game.__annotations__):
-            raise BayesUnexpectedResponseException('game', game)
-
-        if not game['tags']:
-            game['tags'].append('NULL')
-        return game
-
     async def get_tags(self) -> List[Tag]:
         """Return a list of tags that can be used to request games"""
         return self.SPECIAL_TAGS + await self._do_api_call('GET', Service.TAGS)
@@ -107,6 +112,7 @@ class AIOBayesClient:
         if isinstance(to_timestamp, datetime):
             to_timestamp = to_timestamp.isoformat()
         tags = ','.join(tags) if tags is not None else None
+
         params = {'page': page, 'size': page_size, 'from_timestamp': from_timestamp,
                   'to_timestamp': to_timestamp, 'tags': tags}
         params = {k: v for k, v in params.items() if v is not None}
@@ -117,22 +123,7 @@ class AIOBayesClient:
                             to_timestamp: Optional[Union[datetime, str]] = None) \
             -> List[Game]:
         """Get all games with the given filters"""
-        if tags is None:
-            tags = []
-        else:
-            tags = list(tags)
-        only_null = False
-        if tag is not None:
-            tags.append(tag)
-
-        if not tags or tags == ['ALL']:
-            tags = None
-        elif tags == ["NULL"]:
-            only_null = True
-            tags = None
-        elif "NULL" in tags or "ALL" in tags:
-            raise ValueError("The special tags NULL and ALL must be requested alone.")
-
+        tags, only_null = self._validate_tags(tag, tags)
         data = await self.get_games(tags=tags, page_size=INFINITY,
                                     from_timestamp=from_timestamp,
                                     to_timestamp=to_timestamp)
